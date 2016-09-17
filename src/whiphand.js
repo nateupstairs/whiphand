@@ -42,7 +42,7 @@ export class Whiphand {
     try {
       let user
       let scope
-      let session = await this.redis.hgetall(`tokens:${bearer}`)
+      let session = await this.config.redis.hgetall(`tokens:${bearer}`)
 
       if (!session) {
         throw Boom.notFound()
@@ -74,11 +74,11 @@ export class Whiphand {
     let refreshToken = this.randomToken(userKey)
 
     if (temporary) {
-      await this.redis.hmset(
+      await this.config.redis.hmset(
         `tokens:${accessToken}`,
         'user', userKey
       )
-      await this.redis.expire(
+      await this.config.redis.expire(
         `tokens:${accessToken}`,
         this.config.accessTokenLife
       )
@@ -88,13 +88,13 @@ export class Whiphand {
       }
     }
     else {
-      await this.redis.hmset(
+      await this.config.redis.hmset(
         `tokens:${accessToken}`,
         'user', userKey,
         'refresh', refreshToken,
         'expires', expires
       )
-      await this.redis.expire(
+      await this.config.redis.expire(
         `tokens:${accessToken}`,
         this.config.refreshTokenLife
       )
@@ -107,15 +107,15 @@ export class Whiphand {
   }
 
   async destroySession(access) {
-    let ttl = await this.redis.ttl(`tokens:${access}`)
+    let ttl = await this.config.redis.ttl(`tokens:${access}`)
 
     if (ttl > 10) {
-      return this.redis.expire(`tokens:${access}`, 10)
+      return this.config.redis.expire(`tokens:${access}`, 10)
     }
   }
 
   async refreshSession(access, refresh) {
-    let session = await this.redis.hgetall(`tokens:${access}`)
+    let session = await this.config.redis.hgetall(`tokens:${access}`)
     let token
     let user
 
@@ -140,7 +140,7 @@ export class Whiphand {
   async saveResetToken(userKey) {
     let resetToken = this.randomToken(userKey)
 
-    await this.redis.set(
+    await this.config.redis.set(
       `reset:${resetToken}`,
       userKey,
       'EX', this.config.resetTokenLife
@@ -149,7 +149,7 @@ export class Whiphand {
   }
 
   async validateResetToken(token) {
-    let resetToken = await this.redis.get(`reset:${token}`)
+    let resetToken = await this.config.redis.get(`reset:${token}`)
 
     if (!resetToken) {
       return false
@@ -158,7 +158,7 @@ export class Whiphand {
   }
 
   async claimResetToken(token) {
-    return this.redis.del(`reset:${token}`)
+    return this.config.redis.del(`reset:${token}`)
   }
 
   randomToken(prefix) {
