@@ -1,0 +1,45 @@
+{
+  "parser": "babel-eslint",
+  "env": {
+    "node": true
+  },
+  "ecmaFeatures": {
+    "modules": true
+  },
+  "globals": {},
+  "strict": true,
+  "rules": {
+    "semi": [2, "never"],
+    "curly": [2],
+    "no-undef": [2],
+    "brace-style": [2, "stroustrup"],
+    "space-after-keywords": [2, "always"],
+    "space-before-blocks": [2, "always"],
+    "max-len": [2, 80, 4],
+    "no-spaced-func": 2,
+    "semi-spacing": [
+      2,
+      {
+        "before": false,
+        "after": true
+      }
+    ],
+    "key-spacing": [
+      2,
+      {
+        "beforeColon": false,
+        "afterColon": true,
+        "mode": "minimum"
+      }
+    ],
+    "comma-spacing": [
+      2,
+      {
+        "before": false,
+        "after": true
+      }
+    ],
+    "indent": [2, 2],
+    "newline-after-var": [2, "always"]
+  }
+}
