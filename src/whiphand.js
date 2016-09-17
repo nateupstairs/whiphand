@@ -54,7 +54,7 @@ export class Whiphand {
         return callback(refreshError, false)
       }
       user = await this.getUser(session.user)
-      scope = this.getUserScopes(user)
+      scope = await this.getUserScopes(user)
       return callback(null, true, {
         user: user,
         scope: scope
