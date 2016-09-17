@@ -1,7 +1,7 @@
 {
   "name": "whiphand",
   "version": "0.0.1",
-  "description": "Simple HAPI User Authority Management",
+  "description": "Simple Agnostic User Authority Management",
   "main": "lib/whiphand.js",
   "repository": {
     "type": "git",

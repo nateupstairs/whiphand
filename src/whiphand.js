@@ -15,6 +15,14 @@ export class Whiphand {
 
   constructor(config) {
     assert(config.redis, 'Whiphand: must provide config.redis (promise-redis)')
+    assert(
+      config.getUserFunc,
+      'Whiphand: must provide config.getUserFunc (function)'
+    )
+    assert(
+      config.getUserScopesFunc,
+      'Whiphand: must provide config.getUserScopesFunc (function)'
+    )
     this.config = Object.assign({
       accessTokenLife: config.accessTokenLife || defaultAccessTokenLife,
       refreshTokenLife: config.refreshTokenLife || defaultRefreshTokenLife,
@@ -23,11 +31,11 @@ export class Whiphand {
   }
 
   async getUser(id) {
-    return this.getUserFunc(id)
+    return this.config.getUserFunc(id)
   }
 
   async getUserScopes(user) {
-    return this.getUserScopes(user)
+    return this.config.getUserScopesFunc(user)
   }
 
   async validateToken(bearer, callback) {
