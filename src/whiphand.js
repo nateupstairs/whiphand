@@ -38,71 +38,75 @@ export class Whiphand {
     return this.config.getUserScopesFunc(user)
   }
 
-  async validateToken(bearer, callback) {
-    try {
-      let user
-      let scope
-      let session = await this.config.redis.hgetall(`tokens:${bearer}`)
+  getExpiration() {
+    return parseInt(Date.now() / 1000 + this.config.accessTokenLife)
+  }
 
-      if (!session) {
-        throw Boom.notFound()
-      }
-      if (parseInt(session.expires) < Date.now() / 1000) {
-        let refreshError = Boom.unauthorized('Token Expired')
+  async validateToken(bearer) {
+    let user
+    let scope
+    let session = await this.config.redis.get(`tokens:${bearer}`)
 
-        refreshError.output.payload.statusCode = 2222
-        return callback(refreshError, false)
-      }
-      user = await this.getUser(session.user)
-      scope = await this.getUserScopes(user)
-      return callback(null, true, {
-        user: user,
-        scope: scope
-      })
-    }
-    catch (err) {
+    if (!session) {
       let customError = Boom.unauthorized('Token Invalid')
 
       customError.output.payload.statusCode = 1111
-      return callback(customError, false)
+      throw (customError)
+    }
+    session = JSON.parse(session)
+    if (session.expires < Date.now() / 1000) {
+      let refreshError = Boom.unauthorized('Token Expired')
+
+      refreshError.output.payload.statusCode = 2222
+      throw refreshError
+    }
+    user = await this.getUser(session.user)
+    scope = await this.getUserScopes(user)
+    return {
+      user: user,
+      scope: scope
     }
   }
 
   async saveSession(userKey, temporary = false) {
-    let expires = parseInt(Date.now() / 1000 + this.config.accessTokenLife)
+    let expires = this.getExpiration()
     let accessToken = this.randomToken(userKey)
     let refreshToken = this.randomToken(userKey)
+    let user = await this.getUser(userKey)
+    let scope = await this.getUserScopes(user)
+    let data = {}
 
     if (temporary) {
-      await this.config.redis.hmset(
-        `tokens:${accessToken}`,
-        'user', userKey
-      )
-      await this.config.redis.expire(
-        `tokens:${accessToken}`,
-        this.config.accessTokenLife
-      )
-      return {
-        access: accessToken,
-        expires: expires
+      data = {
+        user: userKey
       }
+      await this.config.redis.set(
+        `tokens:${accessToken}`,
+        JSON.stringify(data),
+        'EX', this.config.accessTokenLife
+      )
     }
     else {
-      await this.config.redis.hmset(
-        `tokens:${accessToken}`,
-        'user', userKey,
-        'refresh', refreshToken,
-        'expires', expires
-      )
-      await this.config.redis.expire(
-        `tokens:${accessToken}`,
-        this.config.refreshTokenLife
-      )
-      return {
-        access: accessToken,
+      data = {
+        user: userKey,
         refresh: refreshToken,
         expires: expires
       }
+      await this.config.redis.set(
+        `tokens:${accessToken}`,
+        JSON.stringify(data),
+        'EX', this.config.refreshTokenLife
+      )
+    }
+    return {
+      user: user,
+      scope: scope,
+      token: Object.assign(
+        {
+          access: accessToken
+        },
+        _.omit(data, 'user')
+      )
     }
   }
 
@@ -115,25 +119,63 @@ export class Whiphand {
   }
 
   async refreshSession(access, refresh) {
-    let session = await this.config.redis.hgetall(`tokens:${access}`)
-    let token
-    let user
+    let session = await this.config.redis.get(`tokens:${access}`)
 
     if (!session) {
       throw Boom.forbidden()
     }
+    session = JSON.parse(session)
     if (!session.refresh) {
       throw Boom.forbidden()
     }
     if (session.refresh !== refresh) {
       throw Boom.forbidden()
     }
-    await this.destroySession(access)
-    token = await this.saveSession(session.user)
-    user = await this.getUser(session.user)
+
+    let expires = this.getExpiration()
+    let newAccessToken = this.randomToken(session.user)
+    let newRefreshToken = this.randomToken(session.user)
+    let count = 0
+    let completedData
+    let user = await this.getUser(session.user)
+    let scope = await this.getUserScopes(user)
+    let data = {
+      user: session.user,
+      refresh: newRefreshToken,
+      expires: expires
+    }
+    let success = await this.config.redis.setnx(
+      `refreshing:${access}`,
+      JSON.stringify(Object.assign({
+        access: newAccessToken
+      }, data))
+    )
+
+    if (success > 0) {
+      await this.config.redis.set(
+       `tokens:${newAccessToken}`,
+       JSON.stringify(data),
+       'EX', this.config.refreshTokenLife
+      )
+      await this.config.redis.expire(
+        `refreshing:${access}`,
+        10
+      )
+      completedData = data
+      completedData.access = newAccessToken
+      await this.destroySession(access)
+    }
+    else {
+      completedData = await this.config.redis.get(
+        `refreshing:${access}`
+      )
+      completedData = JSON.parse(completedData)
+    }
+    delete completedData.user
     return {
       user: user,
-      token: token
+      scope: scope,
+      token: completedData
     }
   }
 
