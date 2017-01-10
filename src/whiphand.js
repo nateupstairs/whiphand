@@ -37,6 +37,10 @@ export class Whiphand {
   async getUserScopes(user) {
     return this.config.getUserScopesFunc(user)
   }
+  
+  async getUserValidity(user) {
+    return this.config.getUserValidityFunc(user)
+  }
 
   getExpiration() {
     return parseInt(Date.now() / 1000 + this.config.accessTokenLife)
@@ -45,6 +49,7 @@ export class Whiphand {
   async validateToken(bearer) {
     let user
     let scope
+    let validity
     let session = await this.config.redis.get(`tokens:${bearer}`)
 
     if (!session) {
@@ -61,7 +66,11 @@ export class Whiphand {
       throw refreshError
     }
     user = await this.getUser(session.user)
+    validity = await this.getUserValidity(user)
     scope = await this.getUserScopes(user)
+    if (!validity) {
+      throw Boom.locked('User Disabled')
+    }
     return {
       user: user,
       scope: scope
